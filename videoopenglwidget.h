@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include <QOpenGLWidget>
+#include "readpacketsthread.h"
 namespace Ui {
 class VideoOpenGLWidget;
 }
@@ -15,7 +16,7 @@ public:
     ~VideoOpenGLWidget();
     void paintEvent(QPaintEvent *e);
 public slots:
-    void setVideoImage(QImage* img);
+    void setVideoImage(QImage* img,ReadPacketsThread* mReadPacketsThread);
 private:
     Ui::VideoOpenGLWidget *ui;
 };

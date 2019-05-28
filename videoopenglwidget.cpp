@@ -25,8 +25,8 @@ VideoOpenGLWidget::~VideoOpenGLWidget()
 // Qualifier: 槽，调用更新函数
 // Parameter: QImage * img
 //************************************
-void VideoOpenGLWidget::setVideoImage(QImage* img) {
-    if (ReadPacketsThread::getInstance()->getIsPlaying()) {
+void VideoOpenGLWidget::setVideoImage(QImage* img,ReadPacketsThread* mReadPacketsThread) {
+    if (mReadPacketsThread->getIsPlaying()) {
         image = img;
         this->update();
     }

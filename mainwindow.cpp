@@ -18,21 +18,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-//    qDebug() << "Hello FFmpeg!" << endl;
-//    av_register_all();
-//    unsigned version=avcodec_version();
-//    qDebug()<<"version is :"<<version;
 
-    QObject::connect(DisplayMediaTimer::getInstance(),//信号发出的对象
-            SIGNAL(updateFrame(QImage*)),//信号
-            ui->openGLWidget,//槽接收的对象
-            SLOT(setVideoImage(QImage*))//槽
-        );
-        QObject::connect(this,//信号发出的对象
-            SIGNAL(sendPos(float)),//信号
-            ReadPacketsThread::getInstance(),//槽接收的对象
-            SLOT(receivePos(float))//槽
-        );
         setMinimumWidth(400);
         setMinimumHeight(300);
         bottomAnimation = new QPropertyAnimation(ui->bottemWidget, "geometry");
@@ -56,10 +42,31 @@ MainWindow::MainWindow(QWidget *parent) :
         connect(netAddressAction, &QAction::triggered, this, &MainWindow::netAddressInput);
 
         startTimer(40);
-        ReadPacketsThread *readPacketsThread = ReadPacketsThread::getInstance();
-        readPacketsThread->start();
+//        mReadPacketsThread = ReadPacketsThread::getInstance();
+//        mDisplayMediaTimer=DisplayMediaTimer::getInstance();
+//        mMedia=Media::getInstance();
+//        mImageFilter=ImageFilter::getInstance();
 
-        Media::getInstance()->video->start();
+        mDisplayMediaTimer=new DisplayMediaTimer();
+        mMedia=new Media();
+        mReadPacketsThread=new ReadPacketsThread(mMedia);
+        mImageFilter=new ImageFilter();
+        QObject::connect(this,//信号发出的对象
+            SIGNAL(sendPos(float)),//信号
+            mReadPacketsThread,//槽接收的对象
+            SLOT(receivePos(float))//槽
+        );
+
+        QObject::connect(mDisplayMediaTimer,//信号发出的对象
+                SIGNAL(updateFrame(QImage*,ReadPacketsThread*)),//信号
+                ui->openGLWidget,//槽接收的对象
+                SLOT(setVideoImage(QImage*,ReadPacketsThread*))//槽
+            );
+        mReadPacketsThread->start();
+//        mMedia=new Media;
+        mDisplayMediaTimer->config(mImageFilter,mMedia,mReadPacketsThread); //加载配置
+
+        mMedia->video->start();
         play();
 }
 
@@ -67,9 +74,9 @@ void MainWindow::netAddressInput() {
     bool ok = FALSE;
 
     QString text = QInputDialog::getText( this,
-        QString::fromLocal8Bit("网络流"),
-        QString::fromLocal8Bit("请输入地址"),
-        QLineEdit::Normal, QString::null, &ok);
+    QString::fromLocal8Bit("network stream"),
+    QString::fromLocal8Bit("please input the url"),
+    QLineEdit::Normal, QString::null, &ok);
     if (ok&&!text.isEmpty()) {
         openNetAddressVideo(text);
     }
@@ -82,20 +89,19 @@ void MainWindow::netAddressInput() {
 void MainWindow::openNetAddressVideo(QString address)
 {
     std::string file = address.toLocal8Bit().data();//防止有中文
-    Media *media = Media::getInstance()
-        ->setMediaFile(file.c_str())
-        ->config();
+    mMedia->setMediaFile(file.c_str())
+        ->config(mReadPacketsThread,mDisplayMediaTimer);
     setWindowTitle(address);
-    int total = Media::getInstance()->totalMs;
-    ui->totalHour->setText(QString::number((int)(Media::getInstance()->totalMs / 1000 / 60 / 60)) + ":");//计算视频总的时分秒
-    ui->totalMinute->setText(QString::number((int)(Media::getInstance()->totalMs / 1000 / 60) % 60) + ":");
-    ui->totalSecond->setText(QString::number((int)(Media::getInstance()->totalMs / 1000) % 60 % 60));
+    int total = mMedia->totalMs;
+    ui->totalHour->setText(QString::number((int)(mMedia->totalMs / 1000 / 60 / 60)) + ":");//计算视频总的时分秒
+    ui->totalMinute->setText(QString::number((int)(mMedia->totalMs / 1000 / 60) % 60) + ":");
+    ui->totalSecond->setText(QString::number((int)(mMedia->totalMs / 1000) % 60 % 60));
     isPlay = false;
     play();
     float pos = 0;
     pos = (float)ui->volumeSlider->value() / (float)(ui->volumeSlider->maximum() + 1);
-    if (Media::getInstance()->getAVFormatContext())
-        Media::getInstance()->audio->setVolume(pos*SDL_MIX_MAXVOLUME);//初始化音量为最大音量的一半
+    if (mMedia->getAVFormatContext())
+        mMedia->audio->setVolume(pos*SDL_MIX_MAXVOLUME);//初始化音量为最大音量的一半
 }
 
 
@@ -181,26 +187,26 @@ void MainWindow::openVideoFile() {
         && postfix != QString::fromLocal8Bit("avi")
         && postfix != QString::fromLocal8Bit("mkv")
         && postfix != QString::fromLocal8Bit("rm")
+        && postfix != QString::fromLocal8Bit("wmv")
         ) {
         return;
     }
     std::string file = fileName.toLocal8Bit().data();//防止有中文
     qDebug()<<fileName<<endl;
-    Media *media = Media::getInstance()
-        ->setMediaFile(file.c_str())
-        ->config();
+    mMedia->setMediaFile(file.c_str())
+        ->config(mReadPacketsThread,mDisplayMediaTimer);
 
     setWindowTitle(titles.constLast());
-    int total =Media::getInstance()->totalMs;
-    ui->totalHour->setText(QString::number((int)(Media::getInstance()->totalMs / 1000 / 60 / 60)) + ":");//计算视频总的时分秒
-    ui->totalMinute->setText(QString::number((int)(Media::getInstance()->totalMs / 1000 / 60) % 60) + ":");
-    ui->totalSecond->setText(QString::number((int)(Media::getInstance()->totalMs / 1000) % 60 % 60));
+    int total =mMedia->totalMs;
+    ui->totalHour->setText(QString::number((int)(mMedia->totalMs / 1000 / 60 / 60)) + ":");//计算视频总的时分秒
+    ui->totalMinute->setText(QString::number((int)(mMedia->totalMs / 1000 / 60) % 60) + ":");
+    ui->totalSecond->setText(QString::number((int)(mMedia->totalMs / 1000) % 60 % 60));
     isPlay = false;
     play();
     float pos = 0;
     pos = (float)ui->volumeSlider->value() / (float)(ui->volumeSlider->maximum() + 1);
-    if (Media::getInstance()->getAVFormatContext())
-        Media::getInstance()->audio->setVolume(pos*SDL_MIX_MAXVOLUME);//初始化音量为最大音量的一半
+    if (mMedia->getAVFormatContext())
+        mMedia->audio->setVolume(pos*SDL_MIX_MAXVOLUME);//初始化音量为最大音量的一半
 }
 
 //************************************
@@ -215,17 +221,17 @@ void MainWindow::play() {
 
     const QString PLAY = "QPushButton#playButton{border-image:url(:/QTPlayer/Resources/PlayP.png);}";
     isPlay = !isPlay;
-    DisplayMediaTimer::getInstance()->setPlay(isPlay);
+    mDisplayMediaTimer->setPlay(isPlay);
     if (isPlay)
     {
         ui->bottemWidget->setStyleSheet(PAUSE);
-        if(Media::getInstance()->getAVFormatContext())
-            Media::getInstance()->audio->audioPlay();
+        if(mMedia->getAVFormatContext())
+            mMedia->audio->audioPlay();
     }
     else
     {
         ui->bottemWidget->setStyleSheet(PLAY);
-        if (Media::getInstance()->getAVFormatContext())
+        if (mMedia->getAVFormatContext())
             SDL_CloseAudio();
     }
 }
@@ -243,8 +249,8 @@ void MainWindow::play() {
 void MainWindow::setVolume(int volume) {
     float pos = 0;
     pos = (float)ui->volumeSlider->value() / (float)(ui->volumeSlider->maximum() + 1);
-    if (Media::getInstance()->getAVFormatContext())
-        Media::getInstance()->audio->setVolume(pos*SDL_MIX_MAXVOLUME);
+    if (mMedia->getAVFormatContext())
+        mMedia->audio->setVolume(pos*SDL_MIX_MAXVOLUME);
 }
 
 //************************************
@@ -293,10 +299,10 @@ void MainWindow::hideBottomInAnimation()
 //************************************
 void MainWindow::timerEvent(QTimerEvent * e)
 {
-    if (Media::getInstance()->totalMs > 0)
+    if (mMedia->totalMs > 0)
     {
-        double pts = (double)Media::getInstance()->pts * 1000;
-        double total = (double)Media::getInstance()->totalMs;
+        double pts = (double)mMedia->audio->pts * 1000;
+        double total = (double)mMedia->totalMs;
         double rate = pts / total;
         if (!isPressSlider&&isPlay) {
             ui->playslider->setValue(rate);
@@ -343,8 +349,8 @@ void MainWindow::sliderRelease()
 // Qualifier:上下镜像操作
 //************************************
 void MainWindow::mirrorUpAndDown() {
-    if (Media::getInstance()->getAVFormatContext() && isPlay)
-        ImageFilter::getInstance()->addTask(XTask{ XTASK_MIRRORUPANDDOWN });
+    if (mMedia->getAVFormatContext() && isPlay)
+        mImageFilter->addTask(XTask{ XTASK_MIRRORUPANDDOWN });
 }
 
 //************************************
@@ -355,8 +361,8 @@ void MainWindow::mirrorUpAndDown() {
 // Qualifier:左右镜像操作
 //************************************
 void MainWindow::mirrorLeftAndRight() {
-    if (Media::getInstance()->getAVFormatContext() && isPlay)
-        ImageFilter::getInstance()->addTask(XTask{ XTASK_MIRRORLEFTANDRIGHT });
+    if (mMedia->getAVFormatContext() && isPlay)
+        mImageFilter->addTask(XTask{ XTASK_MIRRORLEFTANDRIGHT });
 }
 
 //************************************
@@ -368,8 +374,8 @@ void MainWindow::mirrorLeftAndRight() {
 //************************************
 void MainWindow::gray2Rgb()
 {
-    if (Media::getInstance()->getAVFormatContext() && isPlay)
-        ImageFilter::getInstance()->addColorTask(ColorTask{ COLRTASK_GRAY_TO_RGBA });
+    if (mMedia->getAVFormatContext() && isPlay)
+        mImageFilter->addColorTask(ColorTask{ COLRTASK_GRAY_TO_RGBA });
 }
 
 //************************************
@@ -381,9 +387,9 @@ void MainWindow::gray2Rgb()
 //************************************
 void MainWindow::rgb2Gray()
 {
-    if (Media::getInstance()->getAVFormatContext() && isPlay) {
+    if (mMedia->getAVFormatContext() && isPlay) {
         for(int i=0;i<5;i++)
-        ImageFilter::getInstance()->addColorTask(ColorTask{ COLRTASK_RGBA_TO_GRAY });
+        mImageFilter->addColorTask(ColorTask{ COLRTASK_RGBA_TO_GRAY });
     }
 
 }
@@ -416,5 +422,5 @@ void MainWindow::resizeEvent(QResizeEvent *e) {
     ui->currentContainer->setLayout(ui->currentLayout);
     ui->currentContainer->resize(ui->totalContainer->size());
     ui->currentContainer->move(ui->playslider->x()+10, ui->playslider->y() + 10);
-    DisplayMediaTimer::getInstance()->resetImage(width(), height());
+    mDisplayMediaTimer->resetImage(width(), height());
 }

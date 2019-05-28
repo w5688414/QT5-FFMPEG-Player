@@ -26,8 +26,9 @@ Media::Media()
 //    av_register_all();//注册ffmpeg所有组件
     avformat_network_init();//注册网络组件
     pFormatCtx = nullptr;
-    audio = new Audio;
+    audio = new Audio();
     video = new Video;
+
 }
 
 //************************************
@@ -37,8 +38,8 @@ Media::Media()
 // Returns:   Media::Media *
 // Qualifier:配置视频
 //************************************
-Media *  Media::config() {
-    close();
+Media *  Media::config(ReadPacketsThread *mReadPacketsThread,DisplayMediaTimer *mDisplayMediaTimer) {
+    close(mReadPacketsThread,mDisplayMediaTimer);
     QMutexLocker locker(&mutex);
     char errorbuf[1024] = { 0 };
     int ret = avformat_open_input(&pFormatCtx, filename, 0, 0);
@@ -102,8 +103,8 @@ Media *  Media::config() {
     video->setFrameTimer(static_cast<double>(av_gettime()) / 1000000.0);//设置初始视频帧时间用于音视同步
     video->setFrameLastDelay(40e-3) ;//计算时间，TODO*/
     audio->audioPlay();
-    ReadPacketsThread::getInstance()->setPlaying(true);
-    DisplayMediaTimer::getInstance()->setPlay(true);
+    mReadPacketsThread->setPlaying(true);
+    mDisplayMediaTimer->setPlay(true);
     return this;
 }
 
@@ -221,7 +222,7 @@ AVFormatContext * Media::getAVFormatContext()
 // Returns:   void
 // Qualifier:关闭，回收资源
 //************************************
-void Media::close()
+void Media::close(ReadPacketsThread *mReadPacketsThread,DisplayMediaTimer *mDisplayMediaTimer)
 {
     QMutexLocker locker(&mutex);
     audio->audioClose();
@@ -240,8 +241,8 @@ void Media::close()
         sws_freeContext(video->swsContext);
         video->swsContext = NULL;
     }
-    ReadPacketsThread::getInstance()->setPlaying(false);
-    DisplayMediaTimer::getInstance()->setPlay(false);
+    mReadPacketsThread->setPlaying(false);
+    mDisplayMediaTimer->setPlay(false);
 
 }
 

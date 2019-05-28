@@ -53,7 +53,7 @@ bool Audio::audioClose() {
 * 向设备发送audio数据的回调函数
 */
 void audioCallback(void* userdata, Uint8 *stream, int len) {
-    Audio  *audio = Media::getInstance()->audio;
+    Audio  *audio = (Audio*)userdata;;
 
     SDL_memset(stream, 0, len);
 
@@ -120,7 +120,7 @@ int audioDecodeFrame(Audio*audio, uint8_t *audioBuffer, int bufferSize) {
     if (ret < 0 && ret != AVERROR_EOF)
         return -1;
     int p = (frame->pts *r2d(audio->getStream()->time_base)) * 1000;
-    Media::getInstance()->pts = p;
+    audio->pts = p;
     // 设置通道数或channel_layout
     if (frame->channels > 0 && frame->channel_layout == 0)
         frame->channel_layout = av_get_default_channel_layout(frame->channels);

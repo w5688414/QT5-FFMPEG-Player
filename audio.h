@@ -1,7 +1,8 @@
 #ifndef AUDIO_H
 #define AUDIO_H
 
-#include "PacketQueue.h"
+#include "packetqueue.h"
+
 extern "C" {
 
 #include <libavformat/avformat.h>
@@ -37,6 +38,7 @@ public:
     void setPlaying(bool isPlaying);
     void clearPacket();
     void setVolume(int volume);
+    int pts = 0;
 private:
 
     AVCodecContext *audioContext;//音频解码器上下文
@@ -48,6 +50,7 @@ private:
     uint32_t audioBuffIndex; // buffer中未发送数据的index
     int streamIndex = -1;
     bool isPlay = false;
+
 };
 
 /**
@@ -58,5 +61,5 @@ void audioCallback(void* userdata, Uint8 *stream, int len);
 /**
 * 解码Avpacket中的数据填充到缓冲空间
 */
-int audioDecodeFrame(Audio*audio, uint8_t *audioBuffer, int bufferSize);
+int audioDecodeFrame(Audio *audio, uint8_t *audioBuffer, int bufferSize);
 #endif // AUDIO_H

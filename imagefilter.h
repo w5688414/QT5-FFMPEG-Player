@@ -30,14 +30,13 @@ public:
     void addColorTask(ColorTask task);
     QImage * filterColor(QImage *&img);
     void clear();
-    static ImageFilter * getInstance() {
-        static ImageFilter filter;
-        return &filter;
-    }
-
+//    static ImageFilter * getInstance() {
+//        static ImageFilter filter;
+//        return &filter;
+//    }
+    ImageFilter();
     ~ImageFilter();
 private:
-    ImageFilter();
     std::vector<XTask> tasks;
     std::vector<ColorTask> colorTasks;
     QMutex mutex;

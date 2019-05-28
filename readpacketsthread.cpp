@@ -8,6 +8,11 @@ extern "C" {
 }
 static bool isExit = false;
 
+ReadPacketsThread::ReadPacketsThread(Media* mMedia)
+{
+    this->mMedia = mMedia;
+}
+
 //************************************
 // Method:    run
 // FullName:  ReadPacketsThread::run
@@ -25,41 +30,41 @@ void ReadPacketsThread::run()
             msleep(100);
             continue;
         }
-        Media *media = Media::getInstance();
-        if (media->audio == nullptr || media->video == nullptr) {
+
+        if (mMedia->audio == nullptr || mMedia->video == nullptr) {
             break;
         }
         if (isSeek) {//是否跳转视频的标识，在解压音视频读包时进行跳转
             int64_t stamp = 0;
-            stamp = currentPos * media->video->getVideoStream()->duration;
+            stamp = currentPos * mMedia->video->getVideoStream()->duration;
 
-            int ret = av_seek_frame(media->getAVFormatContext(), media->getVideoStreamIndex(),
+            int ret = av_seek_frame(mMedia->getAVFormatContext(), mMedia->getVideoStreamIndex(),
                 stamp, AVSEEK_FLAG_BACKWARD | AVSEEK_FLAG_FRAME);
-            media->audio->clearPacket();//要清空所有队列
-            media->video->clearPackets();
-            media->video->clearFrames();
+            mMedia->audio->clearPacket();//要清空所有队列
+            mMedia->video->clearPackets();
+            mMedia->video->clearFrames();
             isSeek = false;
         }
 
-        bool isInvalid = media->checkMediaSizeValid();//音视队列超过一定量时先不读包，等待包消费
+        bool isInvalid = mMedia->checkMediaSizeValid();//音视队列超过一定量时先不读包，等待包消费
         if (isInvalid) {
             locker.unlock();
             msleep(10);
             continue;
         }
-        if (!media->getAVFormatContext()) {
+        if (!mMedia->getAVFormatContext()) {
             locker.unlock();
             msleep(10);
             continue;
         }
-        int ret = av_read_frame(media->getAVFormatContext(), &packet);//读帧音视频包
+        int ret = av_read_frame(mMedia->getAVFormatContext(), &packet);//读帧音视频包
         if (ret < 0)
         {
             if (ret == AVERROR_EOF) {//读包出错
                 break;
             }
 
-            if (media->getAVFormatContext()->pb->error == 0) // 没有错误就等待下次读
+            if (mMedia->getAVFormatContext()->pb->error == 0) // 没有错误就等待下次读
             {
                 locker.unlock();
                 msleep(100);
@@ -70,16 +75,16 @@ void ReadPacketsThread::run()
             }
 
         }
-        if (media->audio!=nullptr&& packet.stream_index == media->getAudioStreamIndex()) // 音频包队列此处入队
+        if (mMedia->audio!=nullptr&& packet.stream_index == mMedia->getAudioStreamIndex()) // 音频包队列此处入队
         {
             locker.unlock();
-            media->enqueueAudioPacket(packet);
+            mMedia->enqueueAudioPacket(packet);
         }
 
-        else if (media->video != nullptr&& packet.stream_index == media->getVideoStreamIndex()) // 视频包队列此处入队
+        else if (mMedia->video != nullptr&& packet.stream_index == mMedia->getVideoStreamIndex()) // 视频包队列此处入队
         {
             locker.unlock();
-            media->enqueueVideoPacket(packet);
+            mMedia->enqueueVideoPacket(packet);
         }
         else {
             av_packet_unref(&packet);
@@ -90,9 +95,7 @@ void ReadPacketsThread::run()
         av_packet_unref(&packet);//包没数据不能释放
 }
 
-ReadPacketsThread::ReadPacketsThread()
-{
-}
+
 
 ReadPacketsThread::~ReadPacketsThread()
 {
